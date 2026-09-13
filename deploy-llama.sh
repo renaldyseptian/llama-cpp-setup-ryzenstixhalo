@@ -3,11 +3,25 @@
 # Run in a new LXD container with GPU passthrough
 set -e
 
-echo "=== ROCm 10 Install ==="
+echo "=== ROCm 10 Install ===\n"
 if [ ! -f /opt/rocm/core-10.0/bin/rocm-smi ]; then
-  curl -fsSL https://repo.radeon.com/rocm/rocm.gpg.key | gpg --dearmor -o /etc/apt/keyrings/rocm.gpg
-  echo 'deb [signed-by=/etc/apt/keyrings/rocm.gpg] https://stable.repo.amd.com/rocm/core/packages/ubuntu2404/ stable main' > /etc/apt/sources.list.d/rocm.list
-  apt-get update && apt-get install -y amdrocm-base10.0 amdrocm-core10.0-gfx1151
+  mkdir -p /etc/apt/keyrings
+  echo "Adding ROCm 10 repo..."
+  # Try multiple methods for GPG key
+  curl -fsSL https://repo.radeon.com/rocm/rocm.gpg.key 2>/dev/null | gpg --dearmor -o /etc/apt/keyrings/rocm.gpg 2>/dev/null || \
+  gpg --homedir /tmp --keyserver keyserver.ubuntu.com --recv-keys FA296B056C5BB456 2>/dev/null && \
+  gpg --homedir /tmp --export FA296B056C5BB456 > /etc/apt/keyrings/rocm.gpg 2>/dev/null || \
+  curl -fsSL https://repo.radeon.com/rocm/rocm.gpg.key -o /etc/apt/keyrings/rocm.gpg 2>/dev/null
+  chmod 644 /etc/apt/keyrings/rocm.gpg 2>/dev/null
+  echo "deb [signed-by=/etc/apt/keyrings/rocm.gpg] https://stable.repo.amd.com/rocm/core/packages/ubuntu2404/ stable main" > /etc/apt/sources.list.d/rocm.list
+  apt-get update 2>&1 | tail -3
+  apt-get install -y amdrocm-base10.0 amdrocm-core10.0-gfx1151 2>&1 | tail -5 || true
+fi
+
+# Verify ROCm
+if [ ! -f /opt/rocm/core-10.0/bin/rocm-smi ]; then
+  echo "ERROR: ROCm 10 install failed. Installing ROCm 7.x fallback..."
+  apt-get install -y rocm-dev 2>&1 | tail -3
 fi
 
 echo "=== Build llama.cpp HIP ==="
